@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  mongo:
+    image: mongo:7
+    container_name: fellow4u-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: fellow4u
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    image: node:20-alpine
+    container_name: fellow4u-api
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:
