@@ -17,10 +17,28 @@ const { setupSwagger } = require("./docs/swagger");
 function createApp(env) {
   const app = express();
   app.locals.env = env;
+  const allowedOrigins = (env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   app.use(
     cors({
-      origin: env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(",") : true,
+      origin(origin, callback) {
+        // Allow non-browser tools (Postman/curl) that may not send Origin.
+        if (!origin) return callback(null, true);
+
+        const isAllowedFromEnv = allowedOrigins.includes(origin);
+        const isLocalhostDevOrigin =
+          env.NODE_ENV !== "production" &&
+          /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+
+        if (isAllowedFromEnv || isLocalhostDevOrigin) {
+          return callback(null, true);
+        }
+
+        return callback(new Error("Not allowed by CORS"));
+      },
       credentials: true,
     })
   );

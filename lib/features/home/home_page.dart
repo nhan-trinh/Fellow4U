@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:Fellow4U/core/network/api_client.dart';
 import 'package:Fellow4U/features/trips/my_trips_page.dart';
 import 'package:Fellow4U/features/home/guide_page.dart';
 import 'package:Fellow4U/features/home/tour_detail_page.dart';
 import 'package:Fellow4U/features/profile/profile_page.dart';
+import 'package:Fellow4U/features/home/data/home_service.dart';
 import 'blog_detail_page.dart';
 import 'package:Fellow4U/features/home/search_page.dart';
 import 'package:Fellow4U/features/home/see_more_page.dart';
@@ -18,10 +20,12 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   static const Color primaryColor = Color(0xff16c1a3);
+  final HomeService _homeService = HomeService();
 
   int _currentIndex = 0;
+  bool _isHomeLoading = false;
 
-  final List<Map<String, String>> topJourneys = const [
+  List<Map<String, String>> topJourneys = [
     {
       "title": "Da Nang - Ba Na - Hoi An",
       "image": "assets/icons/dbh1.png",
@@ -38,7 +42,7 @@ class _HomePageState extends State<HomePage> {
     },
   ];
 
-  final List<Map<String, String>> bestGuides = const [
+  List<Map<String, String>> bestGuides = [
     {
       "name": "Tuan Tran",
       "image": "assets/icons/tuantran.png",
@@ -89,7 +93,7 @@ class _HomePageState extends State<HomePage> {
     },
   ];
 
-  final List<Map<String, String>> featuredTours = const [
+  List<Map<String, String>> featuredTours = [
     {
       "title": "Da Nang - Ba Na - Hoi An",
       "image": "assets/icons/dbh2.png",
@@ -135,6 +139,76 @@ class _HomePageState extends State<HomePage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadHomeData();
+  }
+
+  Future<void> _loadHomeData() async {
+    setState(() => _isHomeLoading = true);
+    try {
+      final homeData = await _homeService.getHomeData();
+      if (!mounted) return;
+      setState(() {
+        topJourneys = _mapTours(homeData["topJourneys"], fallbackImage: "assets/icons/dbh1.png");
+        featuredTours = _mapTours(homeData["featuredTours"], fallbackImage: "assets/icons/dbh2.png");
+        bestGuides = _mapGuides(homeData["bestGuides"]);
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Load home failed: ${error.message}")),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isHomeLoading = false);
+      }
+    }
+  }
+
+  List<Map<String, String>> _mapTours(dynamic rawTours, {required String fallbackImage}) {
+    if (rawTours is! List) return [];
+    return rawTours.map<Map<String, String>>((item) {
+      final map = (item is Map<String, dynamic>) ? item : <String, dynamic>{};
+      final title = map["title"]?.toString() ?? "Untitled Tour";
+      final price = map["priceFrom"];
+      final rating = map["rating"];
+      final duration = map["duration"];
+      final num? priceNum = price is num ? price : num.tryParse(price?.toString() ?? "");
+      return {
+        "title": title,
+        "image": fallbackImage,
+        "price": "\$${(priceNum ?? 0).toStringAsFixed(2)}",
+        "date": "Seeded data",
+        "days": duration == null ? "1 day" : "${duration.toString()} days",
+        "rating": rating?.toString() ?? "0",
+      };
+    }).toList();
+  }
+
+  List<Map<String, String>> _mapGuides(dynamic rawGuides) {
+    if (rawGuides is! List) return [];
+    const guideImages = [
+      "assets/icons/tuantran.png",
+      "assets/icons/emmy.png",
+      "assets/icons/linhhana.png",
+      "assets/icons/khaiho.png",
+    ];
+    return rawGuides.asMap().entries.map<Map<String, String>>((entry) {
+      final index = entry.key;
+      final item = entry.value;
+      final map = (item is Map<String, dynamic>) ? item : <String, dynamic>{};
+      final rating = map["rating"]?.toString() ?? "0";
+      return {
+        "name": map["name"]?.toString() ?? "Unknown Guide",
+        "image": guideImages[index % guideImages.length],
+        "loc": map["location"]?.toString() ?? "Unknown",
+        "reviews": "$rating Rating",
+      };
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
@@ -144,6 +218,11 @@ class _HomePageState extends State<HomePage> {
             _buildHeader(),
             const SizedBox(height: 20),
             _buildSectionHeader("Top Journeys", showMore: true, onTapSeeMore: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeeMorePage(type: SeeMoreType.tours)))),
+            if (_isHomeLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: LinearProgressIndicator(),
+              ),
             _buildTopJourneys(),
             const SizedBox(height: 20),
             _buildSectionHeader("Best Guides", showMore: true, onTapSeeMore: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeeMorePage(type: SeeMoreType.guides)))),

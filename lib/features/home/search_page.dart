@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:Fellow4U/core/network/api_client.dart';
+import 'package:Fellow4U/features/home/data/home_service.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -10,7 +12,12 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   static const Color primaryColor = Color(0xff16c1a3);
   final TextEditingController _searchController = TextEditingController();
+  final HomeService _homeService = HomeService();
   bool _isSearching = false;
+  bool _isLoadingResults = false;
+  String? _searchError;
+  List<Map<String, dynamic>> _tourResults = [];
+  int _requestCounter = 0;
   
   // Filter state
   bool _isGuidesTab = true;
@@ -20,10 +27,45 @@ class _SearchPageState extends State<SearchPage> {
     super.initState();
     _searchController.addListener(() {
       final text = _searchController.text.trim();
+      if (text.isNotEmpty) {
+        _fetchSearchResults(text);
+      } else {
+        setState(() {
+          _tourResults = [];
+          _searchError = null;
+        });
+      }
       setState(() {
         _isSearching = text.isNotEmpty;
       });
     });
+  }
+
+  Future<void> _fetchSearchResults(String keyword) async {
+    final int requestId = ++_requestCounter;
+    setState(() {
+      _isLoadingResults = true;
+      _searchError = null;
+    });
+
+    try {
+      final tours = await _homeService.searchTours(keyword: keyword, limit: 20);
+      if (!mounted || requestId != _requestCounter) return;
+      setState(() {
+        _tourResults = tours;
+      });
+    } on ApiException catch (error) {
+      if (!mounted || requestId != _requestCounter) return;
+      setState(() {
+        _searchError = error.message;
+      });
+    } finally {
+      if (mounted && requestId == _requestCounter) {
+        setState(() {
+          _isLoadingResults = false;
+        });
+      }
+    }
   }
 
   @override
@@ -159,60 +201,58 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildSearchResults() {
+    if (_isLoadingResults) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_searchError != null) {
+      return Center(
+        child: Text(
+          _searchError!,
+          style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    if (_tourResults.isEmpty) {
+      return const Center(
+        child: Text(
+          "No tours found for this keyword",
+          style: TextStyle(color: Colors.grey, fontSize: 14),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                "Guides in Danang",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "SEE MORE",
-                style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 0.85,
-            mainAxisSpacing: 15,
-            crossAxisSpacing: 15,
             children: [
-              _buildGuideCard("Tuan Tran", "assets/icons/tuantran.png", "Danang, Vietnam"),
-              _buildGuideCard("Linh Hana", "assets/icons/linhhana.png", "Danang, Vietnam"),
-              _buildGuideCard("Tuan Tran", "assets/icons/khaiho.png", "Danang, Vietnam"), // Reusing khaiho to add variety or tuantran is fine
-              _buildGuideCard("Linh Hana", "assets/icons/emmy.png", "Danang, Vietnam"), // Emulating 4 grid items
-            ],
-          ),
-          const SizedBox(height: 25),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
               Text(
-                "Tours in Danang",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                "Tours (${_tourResults.length})",
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              Text(
+              const Text(
                 "SEE MORE",
                 style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 15),
-          _buildTourCard("Da Nang - Ba Na - Hoi An", "assets/icons/dbh2.png", "\$400.00"),
-          const SizedBox(height: 15),
-          _buildTourCard("Melbourne - Sydney", "assets/icons/mb.png", "\$600.00"),
-          const SizedBox(height: 15),
-          _buildTourCard("Hanoi - Ha Long Bay", "assets/icons/hlb.png", "\$300.00"),
-          const SizedBox(height: 15),
-          _buildTourCard("Da Nang - Ba Na - Hoi An", "assets/icons/dn1.png", "\$400.00"),
+          ..._tourResults.map((tour) {
+            final title = tour["title"]?.toString() ?? "Untitled Tour";
+            final location = tour["location"]?.toString() ?? "Unknown";
+            final price = tour["priceFrom"];
+            final num? priceNum = price is num ? price : num.tryParse(price?.toString() ?? "");
+            final displayPrice = "\$${(priceNum ?? 0).toStringAsFixed(2)}";
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 15),
+              child: _buildTourCard(title, "assets/icons/dbh2.png", displayPrice, location: location),
+            );
+          }),
           const SizedBox(height: 30),
         ],
       ),
@@ -277,7 +317,7 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildTourCard(String title, String image, String price) {
+  Widget _buildTourCard(String title, String image, String price, {String location = "Seeded Tour"}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -347,10 +387,10 @@ class _SearchPageState extends State<SearchPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: const [
+                          children: [
                             Icon(Icons.calendar_today, size: 12, color: Colors.grey),
                             SizedBox(width: 4),
-                            Text("Jan 30, 2020", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text(location, style: const TextStyle(color: Colors.grey, fontSize: 11)),
                           ],
                         ),
                         const SizedBox(height: 4),
