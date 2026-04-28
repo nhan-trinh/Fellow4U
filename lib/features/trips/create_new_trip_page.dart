@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:Fellow4U/core/network/api_client.dart';
 import 'package:Fellow4U/features/trips/add_new_places_page.dart';
+import 'package:Fellow4U/features/trips/data/trips_service.dart';
 
 class CreateNewTripPage extends StatefulWidget {
   const CreateNewTripPage({super.key});
@@ -10,8 +12,27 @@ class CreateNewTripPage extends StatefulWidget {
 
 class _CreateNewTripPageState extends State<CreateNewTripPage> {
   static const Color primaryColor = Color(0xff16c1a3);
+  final TripsService _tripsService = TripsService();
+  final TextEditingController _locationController =
+      TextEditingController(text: "Danang, Vietnam");
+  final TextEditingController _priceController =
+      TextEditingController(text: "120");
+  final TextEditingController _languageController =
+      TextEditingController(text: "Korean, English");
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
+  TimeOfDay _fromTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _toTime = const TimeOfDay(hour: 11, minute: 0);
   int _travelersCount = 1;
   final List<String> _selectedAttractions = ["Dragon Bridge", "My Khe Beach"];
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _locationController.dispose();
+    _priceController.dispose();
+    _languageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,19 +63,22 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildFieldTitle("Where you want to explore"),
-                _buildTextField(Icons.location_on_outlined, "Danang, Vietnam"),
+                _buildInputField(
+                  icon: Icons.location_on_outlined,
+                  controller: _locationController,
+                ),
                 const SizedBox(height: 25),
 
                 _buildFieldTitle("Date"),
-                _buildTextField(Icons.calendar_today, "mm/dd/yy"),
+                _buildDatePickerField(),
                 const SizedBox(height: 25),
 
                 _buildFieldTitle("Time"),
                 Row(
                   children: [
-                    Expanded(child: _buildTextField(Icons.access_time, "From")),
+                    Expanded(child: _buildTimePickerField(isFrom: true)),
                     const SizedBox(width: 20),
-                    Expanded(child: _buildTextField(Icons.access_time, "To")),
+                    Expanded(child: _buildTimePickerField(isFrom: false)),
                   ],
                 ),
                 const SizedBox(height: 25),
@@ -65,11 +89,14 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
                 const SizedBox(height: 25),
 
                 _buildFieldTitle("Fee"),
-                _buildFeeField(),
+                _buildFeeField(_priceController),
                 const SizedBox(height: 25),
 
                 _buildFieldTitle("Guide's Language"),
-                _buildTextField(Icons.public, "Korean, English"),
+                _buildInputField(
+                  icon: Icons.public,
+                  controller: _languageController,
+                ),
                 const SizedBox(height: 25),
 
                 _buildFieldTitle("Attractions"),
@@ -88,7 +115,7 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: _isSubmitting ? null : _handleCreateTrip,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -97,14 +124,23 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  "DONE",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        "DONE",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -120,7 +156,66 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
     );
   }
 
-  Widget _buildTextField(IconData icon, String hint) {
+  Future<void> _handleCreateTrip() async {
+    final location = _locationController.text.trim();
+    final fee = double.tryParse(_priceController.text.trim()) ?? 0;
+    if (location.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter location")),
+      );
+      return;
+    }
+
+    final start = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _fromTime.hour,
+      _fromTime.minute,
+    );
+    final end = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _toTime.hour,
+      _toTime.minute,
+    );
+    if (end.isBefore(start)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("End time must be after start time")),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      await _tripsService.createTrip(
+        title: _selectedAttractions.join(", "),
+        location: location,
+        startDate: start,
+        endDate: end,
+        participants: _travelersCount,
+        totalPrice: fee,
+        status: start.isAfter(DateTime.now()) ? "next" : "current",
+        notes: "Created from mobile app",
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Widget _buildInputField({
+    required IconData icon,
+    required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return Column(
       children: [
         const SizedBox(height: 5),
@@ -129,16 +224,12 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
             Icon(icon, size: 18, color: Colors.grey),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                hint,
-                style: TextStyle(
-                  color:
-                      hint.contains("mm/dd/yy") ||
-                          hint == "From" ||
-                          hint == "To"
-                      ? Colors.grey
-                      : Colors.black87,
-                  fontSize: 14,
+              child: TextField(
+                controller: controller,
+                keyboardType: keyboardType,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
                 ),
               ),
             ),
@@ -147,6 +238,73 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
         const SizedBox(height: 10),
         Container(height: 1, color: Colors.grey[200]),
       ],
+    );
+  }
+
+  Widget _buildDatePickerField() {
+    final text =
+        "${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}";
+    return _buildTapField(
+      icon: Icons.calendar_today,
+      text: text,
+      onTap: () async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 3650)),
+        );
+        if (date != null) setState(() => _selectedDate = date);
+      },
+    );
+  }
+
+  Widget _buildTimePickerField({required bool isFrom}) {
+    final time = isFrom ? _fromTime : _toTime;
+    final text =
+        "${time.hour.toString().padLeft(2, "0")}:${time.minute.toString().padLeft(2, "0")}";
+    return _buildTapField(
+      icon: Icons.access_time,
+      text: text,
+      onTap: () async {
+        final picked = await showTimePicker(context: context, initialTime: time);
+        if (picked != null) {
+          setState(() {
+            if (isFrom) {
+              _fromTime = picked;
+            } else {
+              _toTime = picked;
+            }
+          });
+        }
+      },
+    );
+  }
+
+  Widget _buildTapField({
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              Icon(icon, size: 18, color: Colors.grey),
+              const SizedBox(width: 10),
+              Text(
+                text,
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(height: 1, color: Colors.grey[200]),
+        ],
+      ),
     );
   }
 
@@ -191,27 +349,31 @@ class _CreateNewTripPageState extends State<CreateNewTripPage> {
     );
   }
 
-  Widget _buildFeeField() {
+  Widget _buildFeeField(TextEditingController controller) {
     return Column(
       children: [
         const SizedBox(height: 5),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.monetization_on_outlined,
-                  size: 18,
-                  color: Colors.grey,
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  "Fee",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ],
+            const Icon(
+              Icons.monetization_on_outlined,
+              size: 18,
+              color: Colors.grey,
             ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: "Fee",
+                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+              ),
+            ),
+            const SizedBox(width: 10),
             const Text(
               "(\$/hour)",
               style: TextStyle(color: Colors.black87, fontSize: 12),

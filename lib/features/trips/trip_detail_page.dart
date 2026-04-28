@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:Fellow4U/core/network/api_client.dart';
+import 'package:Fellow4U/features/trips/data/trips_service.dart';
 import 'package:Fellow4U/features/trips/payment_page.dart';
 
 class TripDetailPage extends StatefulWidget {
+  final String tripId;
   final String status; // 'current', 'confirmed', 'offers', 'waiting'
-  const TripDetailPage({super.key, required this.status});
+  const TripDetailPage({super.key, required this.tripId, required this.status});
 
   @override
   State<TripDetailPage> createState() => _TripDetailPageState();
@@ -11,7 +14,11 @@ class TripDetailPage extends StatefulWidget {
 
 class _TripDetailPageState extends State<TripDetailPage> {
   static const Color primaryColor = Color(0xff16c1a3);
+  final TripsService _tripsService = TripsService();
   String? _chosenOffer; // keep track of chosen guide for 'offers' status
+  bool _isLoading = true;
+  String? _error;
+  Map<String, dynamic>? _trip;
 
   final List<Map<String, dynamic>> _offers = [
     {
@@ -41,7 +48,159 @@ class _TripDetailPageState extends State<TripDetailPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadTripDetail();
+  }
+
+  Future<void> _loadTripDetail() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final trip = await _tripsService.getTripDetail(widget.tripId);
+      if (!mounted) return;
+      setState(() => _trip = trip);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleDeleteTrip() async {
+    try {
+      await _tripsService.deleteTrip(widget.tripId);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  Future<void> _showEditTripDialog() async {
+    final titleController = TextEditingController(
+      text: _trip?["title"]?.toString() ?? "",
+    );
+    final locationController = TextEditingController(
+      text: _trip?["location"]?.toString() ?? "",
+    );
+    final notesController = TextEditingController(
+      text: _trip?["notes"]?.toString() ?? "",
+    );
+    final participantsController = TextEditingController(
+      text: _trip?["participants"]?.toString() ?? "1",
+    );
+    final feeController = TextEditingController(
+      text: _trip?["totalPrice"]?.toString() ?? "0",
+    );
+
+    final shouldUpdate = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Edit Trip"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: "Title"),
+                ),
+                TextField(
+                  controller: locationController,
+                  decoration: const InputDecoration(labelText: "Location"),
+                ),
+                TextField(
+                  controller: participantsController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "Participants"),
+                ),
+                TextField(
+                  controller: feeController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "Total price"),
+                ),
+                TextField(
+                  controller: notesController,
+                  decoration: const InputDecoration(labelText: "Notes"),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldUpdate != true) return;
+
+    try {
+      await _tripsService.updateTrip(
+        tripId: widget.tripId,
+        title: titleController.text.trim(),
+        location: locationController.text.trim(),
+        notes: notesController.text.trim(),
+        participants: int.tryParse(participantsController.text.trim()) ?? 1,
+        totalPrice: double.tryParse(feeController.text.trim()) ?? 0,
+      );
+      if (!mounted) return;
+      await _loadTripDetail();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Trip updated")),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Trip Detail")),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _loadTripDetail,
+                child: const Text("Retry"),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -76,12 +235,14 @@ class _TripDetailPageState extends State<TripDetailPage> {
           children: [
             _buildHeaderImage(),
             const SizedBox(height: 20),
-            _buildTripInfoRow("Date", "Feb 2, 2020"),
-            _buildTripInfoRow("Time", "8:00AM - 10:00AM"),
+            _buildTripInfoRow("Date", _displayDate),
+            _buildTripInfoRow("Time", _displayTime),
             if (widget.status != 'offers') ...[
-              _buildTripInfoRow("Guide", "Emmy", isLink: true),
+              _buildTripInfoRow("Guide", "Guide TBD", isLink: true),
             ],
-            _buildTripInfoRow("Number of Travelers", "2"),
+            _buildTripInfoRow("Number of Travelers", _participantsText),
+            if ((_trip?["notes"]?.toString().isNotEmpty ?? false))
+              _buildTripInfoRow("Notes", _trip!["notes"].toString()),
             const SizedBox(height: 15),
             const Text(
               "Attractions",
@@ -101,6 +262,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
   }
 
   Widget _buildHeaderImage() {
+    final location = _trip?["location"]?.toString() ?? "Unknown location";
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -109,7 +271,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
             image: const DecorationImage(
-              image: AssetImage('assets/icons/hoguom.png'),
+              image: AssetImage('assets/icons/hoguom.png'), // TODO: backend image mapping
               fit: BoxFit.cover,
             ),
           ),
@@ -129,12 +291,12 @@ class _TripDetailPageState extends State<TripDetailPage> {
           bottom: 12,
           left: 15,
           child: Row(
-            children: const [
+            children: [
               Icon(Icons.location_on, color: Colors.white, size: 14),
               SizedBox(width: 5),
               Text(
-                "Hanoi, Vietnam",
-                style: TextStyle(
+                location,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -265,16 +427,20 @@ class _TripDetailPageState extends State<TripDetailPage> {
   }
 
   Widget _buildFeeRow() {
+    final totalPrice = _trip?["totalPrice"];
+    final num? priceNum = totalPrice is num
+        ? totalPrice
+        : num.tryParse(totalPrice?.toString() ?? "");
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: const [
-        Text(
+      children: [
+        const Text(
           "Fee",
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         Text(
-          "\$20.00",
-          style: TextStyle(
+          "\$${(priceNum ?? 0).toStringAsFixed(2)}",
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: primaryColor,
@@ -282,6 +448,45 @@ class _TripDetailPageState extends State<TripDetailPage> {
         ),
       ],
     );
+  }
+
+  String get _participantsText {
+    final participants = _trip?["participants"];
+    if (participants is int) return participants.toString();
+    return participants?.toString() ?? "1";
+  }
+
+  String get _displayDate {
+    final startDate = DateTime.tryParse(_trip?["startDate"]?.toString() ?? "");
+    if (startDate == null) return "N/A";
+    return "${_monthName(startDate.month)} ${startDate.day}, ${startDate.year}";
+  }
+
+  String get _displayTime {
+    final startDate = DateTime.tryParse(_trip?["startDate"]?.toString() ?? "");
+    final endDate = DateTime.tryParse(_trip?["endDate"]?.toString() ?? "");
+    if (startDate == null || endDate == null) return "N/A";
+    return "${_twoDigits(startDate.hour)}:${_twoDigits(startDate.minute)} - ${_twoDigits(endDate.hour)}:${_twoDigits(endDate.minute)}";
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, "0");
+
+  String _monthName(int month) {
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return month >= 1 && month <= 12 ? months[month - 1] : "N/A";
   }
 
   Widget _buildDynamicBottom() {
@@ -579,7 +784,10 @@ class _TripDetailPageState extends State<TripDetailPage> {
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
                 title: const Text("Edit This Trip"),
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditTripDialog();
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.delete_outline),
@@ -640,10 +848,8 @@ class _TripDetailPageState extends State<TripDetailPage> {
             ),
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(
-                  context,
-                ); // Close Trip detail and return to My Trips
+                Navigator.pop(context);
+                _handleDeleteTrip();
               },
               child: const Text(
                 "Delete",

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:Fellow4U/core/network/api_client.dart';
 import 'package:Fellow4U/features/trips/create_new_trip_page.dart';
+import 'package:Fellow4U/features/trips/data/trips_service.dart';
 import 'package:Fellow4U/features/trips/trip_detail_page.dart';
 import 'package:Fellow4U/features/trips/payment_page.dart';
 import 'package:Fellow4U/features/chat/chat_page.dart';
@@ -14,90 +16,116 @@ class MyTripsPage extends StatefulWidget {
 
 class _MyTripsPageState extends State<MyTripsPage> {
   static const Color primaryColor = Color(0xff16c1a3);
+  final TripsService _tripsService = TripsService();
+
+  static const List<String> _statusByTab = [
+    "current",
+    "next",
+    "past",
+    "wishlist",
+  ];
+
+  static const Map<String, String> _fallbackImageByStatus = {
+    "current": "assets/icons/trip2.png",
+    "next": "assets/icons/hoguom.png",
+    "past": "assets/icons/quoctugiam.png",
+    "wishlist": "assets/icons/mb.png",
+  };
+
   int _selectedTab = 0;
+  bool _isLoadingTrips = false;
+  String? _tripError;
+  final Map<String, List<Map<String, dynamic>>> _tripCacheByStatus = {};
 
-  final List<Map<String, dynamic>> currentTrips = [
-    {
-      "title": "Dragon Bridge Trip",
-      "image": "assets/icons/trip2.png",
-      "location": "Da Nang, Vietnam",
-      "date": "Jan 30, 2020",
-      "time": "13:00 - 15:00",
-      "guide": "Tuan Tran",
+  @override
+  void initState() {
+    super.initState();
+    _loadTripsForSelectedTab();
+  }
+
+  String get _currentStatus => _statusByTab[_selectedTab];
+
+  Future<void> _loadTripsForSelectedTab({bool force = false}) async {
+    final status = _currentStatus;
+    if (!force && _tripCacheByStatus.containsKey(status)) return;
+
+    setState(() {
+      _isLoadingTrips = true;
+      _tripError = null;
+    });
+    try {
+      final trips = await _tripsService.getMyTrips(status: status);
+      if (!mounted) return;
+      setState(() {
+        _tripCacheByStatus[status] = trips.map(_mapTripForUi).toList();
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _tripError = error.message;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingTrips = false;
+        });
+      }
+    }
+  }
+
+  Map<String, dynamic> _mapTripForUi(Map<String, dynamic> raw) {
+    final status = raw["status"]?.toString() ?? "next";
+    final startDate = DateTime.tryParse(raw["startDate"]?.toString() ?? "");
+    final endDate = DateTime.tryParse(raw["endDate"]?.toString() ?? "");
+    final date = startDate == null
+        ? "N/A"
+        : "${_monthName(startDate.month)} ${startDate.day}, ${startDate.year}";
+    final time = (startDate != null && endDate != null)
+        ? "${_twoDigits(startDate.hour)}:${_twoDigits(startDate.minute)} - ${_twoDigits(endDate.hour)}:${_twoDigits(endDate.minute)}"
+        : "N/A";
+    final totalPrice = raw["totalPrice"];
+    final num? priceNum = totalPrice is num
+        ? totalPrice
+        : num.tryParse(totalPrice?.toString() ?? "");
+    return {
+      ...raw,
+      "tripId": raw["_id"]?.toString() ?? "",
+      "title": raw["title"]?.toString() ?? "Untitled Trip",
+      "location": raw["location"]?.toString() ?? "Unknown location",
+      "date": date,
+      "time": time,
+      "guide": "Guide TBD",
       "guideImage": "assets/icons/tuantran.png",
-    },
-  ];
+      "statusText": status == "wishlist" ? "Wish list item" : "Waiting for offers",
+      "status": status == "next" ? "normal" : status,
+      "uiStatus": status,
+      "image": _fallbackImageByStatus[status] ?? "assets/icons/trip2.png",
+      "days": startDate != null && endDate != null
+          ? "${endDate.difference(startDate).inDays.abs() + 1} days"
+          : "1 day",
+      "price": "\$${(priceNum ?? 0).toStringAsFixed(2)}",
+    };
+  }
 
-  final List<Map<String, dynamic>> nextTrips = [
-    {
-      "title": "Ho Guom Trip",
-      "image": "assets/icons/hoguom.png",
-      "location": "Hanoi, Vietnam",
-      "date": "Feb 2, 2020",
-      "time": "8:00 - 10:00",
-      "guide": "Emmy",
-      "guideImage": "assets/icons/emmy.png",
-      "status": "normal",
-    },
-    {
-      "title": "Ho Chi Minh Mausoleum",
-      "image": "assets/icons/hanoi.png",
-      "location": "Hanoi, Vietnam",
-      "date": "Feb 2, 2020",
-      "time": "8:00 - 10:00",
-      "guide": "Emmy",
-      "guideImage": "assets/icons/emmy.png",
-      "status": "visiting",
-    },
-    {
-      "title": "Duc Ba Church",
-      "image": "assets/icons/hcm.png",
-      "location": "Ho Chi Minh, Vietnam",
-      "date": "Feb 2, 2020",
-      "time": "8:00 - 10:00",
-      "statusText": "Waiting for offers",
-      "guideImage": "assets/icons/tuantran.png",
-      "status": "bidding",
-    },
-  ];
+  String _twoDigits(int value) => value.toString().padLeft(2, "0");
 
-  final List<Map<String, dynamic>> pastTrips = [
-    {
-      "title": "Quoc Tu Giam Temple",
-      "image": "assets/icons/quoctugiam.png",
-      "location": "Hanoi, Vietnam",
-      "date": "Feb 2, 2020",
-      "time": "8:00 - 10:00",
-      "guide": "Emmy",
-      "guideImage": "assets/icons/emmy.png",
-    },
-    {
-      "title": "Dinh Doc Lap",
-      "image": "assets/icons/dinhdoclap.png",
-      "location": "Ho Chi Minh, Vietnam",
-      "date": "Feb 2, 2020",
-      "time": "8:00 - 10:00",
-      "guide": "Khai Ho",
-      "guideImage": "assets/icons/khaiho.png",
-    },
-  ];
-
-  final List<Map<String, dynamic>> wishListTours = [
-    {
-      "title": "Melbourne - Sydney",
-      "image": "assets/icons/mb.png",
-      "price": "\$600.00",
-      "date": "Jan 30, 2020",
-      "days": "3 days",
-    },
-    {
-      "title": "Hanoi - Ha Long Bay",
-      "image": "assets/icons/hlb.png",
-      "price": "\$300.00",
-      "date": "Jan 30, 2020",
-      "days": "3 days",
-    },
-  ];
+  String _monthName(int month) {
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return month >= 1 && month <= 12 ? months[month - 1] : "N/A";
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,11 +146,15 @@ class _MyTripsPageState extends State<MyTripsPage> {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: primaryColor,
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final created = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreateNewTripPage()),
           );
+          if (created == true) {
+            _tripCacheByStatus.clear();
+            _loadTripsForSelectedTab(force: true);
+          }
         },
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -203,6 +235,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
                 setState(() {
                   _selectedTab = index;
                 });
+                _loadTripsForSelectedTab();
               },
               child: Container(
                 decoration: BoxDecoration(
@@ -235,18 +268,62 @@ class _MyTripsPageState extends State<MyTripsPage> {
   }
 
   Widget _buildTabContent() {
-    switch (_selectedTab) {
-      case 0:
-        return _buildTripsList(currentTrips, isCurrent: true);
-      case 1:
-        return _buildTripsList(nextTrips, isNext: true);
-      case 2:
-        return _buildTripsList(pastTrips, isPast: true);
-      case 3:
-        return _buildWishList();
-      default:
-        return SliverToBoxAdapter(child: Container());
+    if (_isLoadingTrips) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
     }
+
+    if (_tripError != null) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          child: Column(
+            children: [
+              Text(
+                _tripError!,
+                style: const TextStyle(color: Colors.redAccent),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => _loadTripsForSelectedTab(force: true),
+                child: const Text("Retry"),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final trips = _tripCacheByStatus[_currentStatus] ?? [];
+    if (trips.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(
+            child: Text(
+              "No ${_currentStatus.toUpperCase()} trips yet",
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_currentStatus == "wishlist") {
+      return _buildWishList(trips);
+    }
+
+    return _buildTripsList(
+      trips,
+      isCurrent: _currentStatus == "current",
+      isNext: _currentStatus == "next",
+      isPast: _currentStatus == "past",
+    );
   }
 
   Widget _buildTripsList(
@@ -410,15 +487,9 @@ class _MyTripsPageState extends State<MyTripsPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 10),
-                                  _buildIconText(
-                                    Icons.calendar_today,
-                                    trip['date'],
-                                  ),
+                                  _buildIconText(Icons.calendar_today, trip['date']),
                                   const SizedBox(height: 6),
-                                  _buildIconText(
-                                    Icons.access_time,
-                                    trip['time'],
-                                  ),
+                                  _buildIconText(Icons.access_time, trip['time']),
                                   const SizedBox(height: 6),
                                   if (trip['guide'] != null)
                                     _buildIconText(Icons.person, trip['guide'])
@@ -484,7 +555,10 @@ class _MyTripsPageState extends State<MyTripsPage> {
                             else
                               CircleAvatar(
                                 radius: 22,
-                                backgroundImage: AssetImage(trip['guideImage']),
+                                backgroundImage: AssetImage(
+                                  trip['guideImage']?.toString() ??
+                                      "assets/icons/tuantran.png",
+                                ),
                               ),
                           ],
                         ),
@@ -492,11 +566,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
                         // Action Buttons
                         if (isCurrent || isNext) ...[
                           const SizedBox(height: 15),
-                          _buildActionButtons(
-                            context,
-                            trip['status'],
-                            isCurrent,
-                          ),
+                          _buildActionButtons(context, trip, isCurrent),
                         ],
                       ],
                     ),
@@ -555,9 +625,26 @@ class _MyTripsPageState extends State<MyTripsPage> {
 
   Widget _buildActionButtons(
     BuildContext context,
-    String? status,
+    Map<String, dynamic> trip,
     bool isCurrent,
   ) {
+    final status = trip['status']?.toString();
+    final tripId = trip['tripId']?.toString() ?? "";
+
+    Future<void> openDetail(String detailStatus) async {
+      if (tripId.isEmpty) return;
+      final changed = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TripDetailPage(tripId: tripId, status: detailStatus),
+        ),
+      );
+      if (changed == true) {
+        _tripCacheByStatus.remove(_currentStatus);
+        _loadTripsForSelectedTab(force: true);
+      }
+    }
+
     if (status == 'visiting') {
       return SizedBox(
         width: 100,
@@ -565,14 +652,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
         child: _buildOutlineButton(
           "Detail",
           Icons.info_outline,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const TripDetailPage(status: 'waiting'),
-              ),
-            );
-          },
+          onTap: () => openDetail('waiting'),
         ),
       );
     } else if (status == 'bidding') {
@@ -584,14 +664,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
               child: _buildOutlineButton(
                 "Detail",
                 Icons.info_outline,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const TripDetailPage(status: 'offers'),
-                    ),
-                  );
-                },
+                onTap: () => openDetail('offers'),
               ),
             ),
           ),
@@ -614,14 +687,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
               child: _buildOutlineButton(
                 "Detail",
                 Icons.info_outline,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const TripDetailPage(status: 'waiting'),
-                    ),
-                  ); // Standard waiting fallback for rejected detail
-                },
+                onTap: () => openDetail('waiting'),
               ),
             ),
           ),
@@ -663,16 +729,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
               child: _buildOutlineButton(
                 "Detail",
                 Icons.info_outline,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TripDetailPage(
-                        status: isCurrent ? 'current' : 'confirmed',
-                      ),
-                    ),
-                  );
-                },
+                onTap: () => openDetail(isCurrent ? 'current' : 'confirmed'),
               ),
             ),
           ),
@@ -737,7 +794,7 @@ class _MyTripsPageState extends State<MyTripsPage> {
     );
   }
 
-  Widget _buildWishList() {
+  Widget _buildWishList(List<Map<String, dynamic>> wishListTours) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       sliver: SliverList(

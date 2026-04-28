@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const { User } = require("../users/user.model");
 const { RefreshToken } = require("./refresh-token.model");
 const { ok } = require("../../shared/response");
+const { seedTripsForUser } = require("../trips/trip-seed.service");
 const {
   signAccessToken,
   signRefreshToken,
@@ -22,6 +23,7 @@ async function register(req, res, next) {
     }
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({ email, passwordHash, name });
+    await seedTripsForUser(user._id);
 
     return ok(
       res,
@@ -56,6 +58,7 @@ async function login(req, res, next) {
       err.code = "INVALID_CREDENTIALS";
       throw err;
     }
+    await seedTripsForUser(user._id);
 
     const env = req.app.locals.env;
     const accessToken = signAccessToken(user, env);
