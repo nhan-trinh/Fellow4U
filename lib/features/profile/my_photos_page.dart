@@ -88,7 +88,7 @@ class _MyPhotosPageState extends State<MyPhotosPage> {
                 runSpacing: 2,
                 children: [
                   _buildFirstTile(),
-                  ..._photos.map((photo) => _buildPhotoTile(photo)).toList(),
+                  ..._photos.map((photo) => _buildPhotoTile(photo)),
                 ],
               ),
             ),

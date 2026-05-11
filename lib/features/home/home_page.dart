@@ -22,7 +22,7 @@ class _HomePageState extends State<HomePage> {
   static const Color primaryColor = Color(0xff16c1a3);
   final HomeService _homeService = HomeService();
 
-  int _currentIndex = 0;
+  final int _currentIndex = 0;
   bool _isHomeLoading = false;
 
   List<Map<String, String>> topJourneys = [
@@ -150,9 +150,11 @@ class _HomePageState extends State<HomePage> {
       final homeData = await _homeService.getHomeData();
       if (!mounted) return;
       setState(() {
-        topJourneys = _mapTours(homeData["topJourneys"], fallbackImage: "assets/icons/dbh1.png");
-        featuredTours = _mapTours(homeData["featuredTours"], fallbackImage: "assets/icons/dbh2.png");
-        bestGuides = _mapGuides(homeData["bestGuides"]);
+        // Only replace Top Journeys with real data; leave other sections as mock data
+        topJourneys = _mapTours(
+          homeData["topJourneys"],
+          fallbackImage: "assets/icons/dbh1.png",
+        );
       });
     } on ApiException catch (error) {
       if (!mounted) return;
@@ -166,7 +168,10 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  List<Map<String, String>> _mapTours(dynamic rawTours, {required String fallbackImage}) {
+  List<Map<String, String>> _mapTours(
+    dynamic rawTours, {
+    required String fallbackImage,
+  }) {
     if (rawTours is! List) return [];
     return rawTours.map<Map<String, String>>((item) {
       final map = (item is Map<String, dynamic>) ? item : <String, dynamic>{};
@@ -174,7 +179,9 @@ class _HomePageState extends State<HomePage> {
       final price = map["priceFrom"];
       final rating = map["rating"];
       final duration = map["duration"];
-      final num? priceNum = price is num ? price : num.tryParse(price?.toString() ?? "");
+      final num? priceNum = price is num
+          ? price
+          : num.tryParse(price?.toString() ?? "");
       return {
         "title": title,
         "image": fallbackImage,
@@ -217,7 +224,16 @@ class _HomePageState extends State<HomePage> {
           children: [
             _buildHeader(),
             const SizedBox(height: 20),
-            _buildSectionHeader("Top Journeys", showMore: true, onTapSeeMore: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeeMorePage(type: SeeMoreType.tours)))),
+            _buildSectionHeader(
+              "Top Journeys",
+              showMore: true,
+              onTapSeeMore: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SeeMorePage(type: SeeMoreType.tours),
+                ),
+              ),
+            ),
             if (_isHomeLoading)
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20),
@@ -225,13 +241,31 @@ class _HomePageState extends State<HomePage> {
               ),
             _buildTopJourneys(),
             const SizedBox(height: 20),
-            _buildSectionHeader("Best Guides", showMore: true, onTapSeeMore: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeeMorePage(type: SeeMoreType.guides)))),
+            _buildSectionHeader(
+              "Best Guides",
+              showMore: true,
+              onTapSeeMore: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SeeMorePage(type: SeeMoreType.guides),
+                ),
+              ),
+            ),
             _buildBestGuides(),
             const SizedBox(height: 20),
             _buildSectionHeader("Top Experiences", showMore: true),
             _buildTopExperiences(),
             const SizedBox(height: 20),
-            _buildSectionHeader("Featured Tours", showMore: true, onTapSeeMore: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeeMorePage(type: SeeMoreType.tours)))),
+            _buildSectionHeader(
+              "Featured Tours",
+              showMore: true,
+              onTapSeeMore: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SeeMorePage(type: SeeMoreType.tours),
+                ),
+              ),
+            ),
             _buildFeaturedTours(),
             const SizedBox(height: 20),
             _buildSectionHeader("Travel News", showMore: true),
@@ -244,33 +278,53 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildTrendingCard(BuildContext context, String imagePath, String title, String subtitle, String likes) {
+  Widget _buildTrendingCard(
+    BuildContext context,
+    String imagePath,
+    String title,
+    String subtitle,
+    String likes,
+  ) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const BlogDetailPage()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BlogDetailPage()),
+        );
       },
       child: Container(
         width: 160,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 5),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
         ),
         child: Column(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: Image.asset(imagePath, height: 100, width: 160, fit: BoxFit.cover),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
+              child: Image.asset(
+                imagePath,
+                height: 100,
+                width: 160,
+                fit: BoxFit.cover,
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
                   const SizedBox(height: 5),
                   Row(
                     children: [
@@ -435,7 +489,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSectionHeader(String title, {bool showMore = true, VoidCallback? onTapSeeMore}) {
+  Widget _buildSectionHeader(
+    String title, {
+    bool showMore = true,
+    VoidCallback? onTapSeeMore,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
@@ -490,84 +548,85 @@ class _HomePageState extends State<HomePage> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(15),
-                      ),
-                      child: Image.asset(
-                        item['image']!,
-                        height: 130,
-                        width: 220,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: const Icon(
-                          Icons.bookmark,
-                          color: primaryColor,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
                     children: [
-                      const Text("đŸ“…", style: TextStyle(fontSize: 12)),
-                      Text(
-                        item['date']!,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(15),
+                        ),
+                        child: Image.asset(
+                          item['image']!,
+                          height: 130,
+                          width: 220,
+                          fit: BoxFit.cover,
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item['days']!,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        item['title']!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        item['price']!,
-                        style: const TextStyle(
-                          color: primaryColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(
+                            Icons.bookmark,
+                            color: primaryColor,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("đŸ“…", style: TextStyle(fontSize: 12)),
+                        Text(
+                          item['date']!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          item['days']!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          item['title']!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          item['price']!,
+                          style: const TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ));
+          );
         },
       ),
     );
@@ -604,73 +663,77 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
               padding: const EdgeInsets.all(15),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 65,
-                      backgroundImage: AssetImage(guide['image']!),
-                    ),
-                    Positioned(
-                      bottom: 5,
-                      right: 5,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(5),
-                        child: const Text("â­", style: TextStyle(fontSize: 16)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 65,
+                        backgroundImage: AssetImage(guide['image']!),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  guide['name']!,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                      Positioned(
+                        bottom: 5,
+                        right: 5,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(5),
+                          child: const Text(
+                            "â­",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: primaryColor,
-                      size: 14,
+                  const SizedBox(height: 15),
+                  Text(
+                    guide['name']!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
                     ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        guide['loc']!,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: primaryColor,
+                        size: 14,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  guide['reviews']!,
-                  style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          guide['loc']!,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    guide['reviews']!,
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
-          ));
+          );
         },
       ),
     );
@@ -965,78 +1028,81 @@ class _HomePageState extends State<HomePage> {
           final news = travelNews[index];
           return GestureDetector(
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const BlogDetailPage()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BlogDetailPage()),
+              );
             },
             child: Container(
               margin: const EdgeInsets.only(bottom: 15),
               decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: const [
-                BoxShadow(color: Colors.black12, blurRadius: 5),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: Stack(
-                children: [
-                  Image.asset(
-                    news['image']!,
-                    height: 120,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 120,
-                        color: Colors.grey[300],
-                        child: const Center(
-                          child: Icon(Icons.broken_image, size: 40),
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 5),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: Stack(
+                  children: [
+                    Image.asset(
+                      news['image']!,
+                      height: 120,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 120,
+                          color: Colors.grey[300],
+                          child: const Center(
+                            child: Icon(Icons.broken_image, size: 40),
+                          ),
+                        );
+                      },
+                    ),
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.3),
+                            Colors.black.withOpacity(0.7),
+                          ],
                         ),
-                      );
-                    },
-                  ),
-                  Container(
-                    height: 120,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.3),
-                          Colors.black.withOpacity(0.7),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 10,
+                      left: 10,
+                      right: 10,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            news['title']!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            news['date']!,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                  Positioned(
-                    bottom: 10,
-                    left: 10,
-                    right: 10,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          news['title']!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          news['date']!,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
               ),
             ),
           );
@@ -1098,4 +1164,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-

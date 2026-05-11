@@ -34,9 +34,23 @@ class HomeService {
     if (data is! List) return [];
     return data
         .whereType<Map>()
-        .map((item) => item.map(
-              (key, value) => MapEntry(key.toString(), value),
-            ))
+        .map(
+          (item) => item.map((key, value) => MapEntry(key.toString(), value)),
+        )
         .toList();
+  }
+
+  Future<Map<String, dynamic>> getDetails(String id, String type) async {
+    if (type != "tour" && type != "guide") {
+      throw ApiException("Invalid type. Use 'tour' or 'guide'");
+    }
+    final response = await _apiClient.get(
+      "/api/v1/home/details/$id?type=$type",
+    );
+    final data = response["data"];
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    throw ApiException("Invalid details data format");
   }
 }

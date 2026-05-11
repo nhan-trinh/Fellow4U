@@ -107,14 +107,14 @@ class TripsService {
       "/api/v1/my-trips/$tripId",
       headers: {"Authorization": "Bearer $accessToken"},
       body: {
-        if (title != null) "title": title,
-        if (location != null) "location": location,
+        "title": ?title,
+        "location": ?location,
         if (startDate != null) "startDate": startDate.toIso8601String(),
         if (endDate != null) "endDate": endDate.toIso8601String(),
-        if (participants != null) "participants": participants,
-        if (totalPrice != null) "totalPrice": totalPrice,
-        if (notes != null) "notes": notes,
-        if (status != null) "status": status,
+        "participants": ?participants,
+        "totalPrice": ?totalPrice,
+        "notes": ?notes,
+        "status": ?status,
       },
     );
 

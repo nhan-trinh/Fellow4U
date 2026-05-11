@@ -589,7 +589,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 15),
-        ..._offers.map((offer) => _buildOfferItem(offer)).toList(),
+        ..._offers.map((offer) => _buildOfferItem(offer)),
       ],
     );
   }

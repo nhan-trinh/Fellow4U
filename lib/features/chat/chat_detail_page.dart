@@ -18,7 +18,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   bool _isTyping = false;
   bool _isRecording = false;
 
-  List<Map<String, dynamic>> _groupMembers = []; // Contains added friends
+  final List<Map<String, dynamic>> _groupMembers = []; // Contains added friends
   
   final List<Map<String, dynamic>> _messages = [
     {
@@ -67,7 +67,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   child: Text("Jan 28, 2020", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 20),
-                ..._messages.map((m) => _buildMessageBubble(m)).toList(),
+                ..._messages.map((m) => _buildMessageBubble(m)),
               ],
             ),
           ),
